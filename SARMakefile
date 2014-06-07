@@ -1,0 +1,47 @@
+# *****************************
+# 预定义
+# *****************************
+CC = g++
+CFLAGS = -c -g 
+INCLUDES =  -I/usr/include -I/usr/local/include -I. -I../../common `mysql_config --cflags`
+LIBS = -L/usr/lib64 -L/usr/local/lib64 -lACE -ldl -lcurl -lGeoIP -ltbbmalloc -lcommon `mysql_config --libs`
+
+# *****************************
+# 变换规则
+# *****************************
+# Here are some rules for converting .cpp -> .o
+.SUFFIXES: .cpp .o
+.cpp.o:
+	@$(CC) $(CFLAGS) ${INCLUDES} -o $*.o $*.cpp 
+	@echo '----- '$*.cpp' is compiled ok!'
+
+# Here are some rules for converting .c -> .o
+.SUFFIXES: .c .o
+.c.o:
+	@$(CC) $(CFLAGS) -o $*.o $*.c 
+	@echo '----- '$*.c' is compiled ok!'
+
+default:all
+
+# 主应用文件列表
+OBJS =  SARSvc.o \
+	SARServerMgr.o \
+	ClientSocket.o \
+	ClientSocketMgr.o \
+	main.o \
+	MainConfig.o \
+	Message.o \
+	MessageService.o
+       	
+# 主应用程序
+APP_NAME = ../bin/sarserver
+
+all:$(APP_NAME) Makefile
+
+$(APP_NAME):$(OBJS)
+	$(CC) -rdynamic -g -o $(APP_NAME) $(OBJS) $(LIBS)
+
+# 清理
+clean:
+	rm -rf *.o
+	rm -rf $(APP_NAME)
