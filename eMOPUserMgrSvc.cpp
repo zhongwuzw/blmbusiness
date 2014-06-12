@@ -756,7 +756,7 @@ int eMOPUserMgrSvc::NewUser(const char* pUid, const char* jsonString, std::strin
 	}
 	if(iOpt==0)
 	{				
-		sprintf (sql, "insert into blm_emop_etl.t50_emop_users(USER_ID,PASSWORD,DEPARTMENT_CODE,NAME,TEL,FAX,MOBILE,EMAIL,START_DT,END_DT,COMPANY_KEY,VALID_FLAG) values ('%s','%s','%s','%s','%s','%s','%s','%s',%s,%s,'%s','%d')",\
+		sprintf (sql, "insert into blm_emop_etl.t50_emop_users(USER_ID,PASSWORD,DEPARTMENT_CODE,NAME,TEL,FAX,MOBILE,EMAIL,START_DT,END_DT,COMPANY_KEY,VALID_FLAG) values ('%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%d')",\
 			strUId.c_str(),strPwd.c_str(), strDpt.c_str(),strRn.c_str(),strTel.c_str(),strFax.c_str(),strMobile.c_str(),strEmail.c_str(),strSt.c_str(),strEt.c_str(),strCorpId.c_str(),iType);
 	}
 	else
@@ -1507,7 +1507,6 @@ int eMOPUserMgrSvc::GetDptUsers(const char* pUid, const char* jsonString, std::s
 					t_depart.DEPARTMENT_CODE,t_depart.NAME_CN AS DEPART_NAME\
 					FROM blm_emop_etl.t50_emop_users t_user  \
 					JOIN blm_emop_etl.t50_emop_department_code t_depart ON t_user.DEPARTMENT_CODE=t_depart.DEPARTMENT_CODE \
-					JOIN blm_emop_etl.t50_emop_user_authorities t_auth ON  t_auth.USER_ID=t_user.USER_ID\
 					WHERE t_user.COMPANY_KEY='%s' AND t_depart.BOARD_FLAG=0 %s",strId.c_str(),appSql);
 
 		DEBUG_LOG(sql);

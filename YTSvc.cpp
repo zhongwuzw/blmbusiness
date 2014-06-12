@@ -817,7 +817,7 @@ int YTSvc::NewUser(const char* pUid, const char* jsonString, std::stringstream& 
 			strUId.c_str(),strPwd.c_str());
 		CHECK_MYSQL_STATUS(psql->Execute(sql)>=0, 3);
 
-		sprintf (sql, "insert into t41_yt_users(USER_ID,PASSWORD,DEPARTMENT_CODE,NAME,TEL,FAX,MOBILE,EMAIL,START_DT,END_DT,COMPANY_KEY,VALID_FLAG,JOB) values ('%s','%s','%s','%s','%s','%s','%s','%s',%s,%s,'%s','%d','%s')",\
+		sprintf (sql, "insert into t41_yt_users(USER_ID,PASSWORD,DEPARTMENT_CODE,NAME,TEL,FAX,MOBILE,EMAIL,START_DT,END_DT,COMPANY_KEY,VALID_FLAG,JOB) values ('%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%d','%s')",\
 			strUId.c_str(),strPwd.c_str(), strDpt.c_str(),strRn.c_str(),strTel.c_str(),strFax.c_str(),strMobile.c_str(),strEmail.c_str(), strSt.c_str(),strEt.c_str(),strCorpId.c_str(),iType,strDuty.c_str());
 	}
 	else
@@ -825,10 +825,11 @@ int YTSvc::NewUser(const char* pUid, const char* jsonString, std::stringstream& 
 		sprintf (sql, "UPDATE t41_yt_users SET DEPARTMENT_CODE='%s',NAME='%s',TEL='%s',FAX='%s',MOBILE='%s',EMAIL='%s',JOB='%s',START_DT='%s',END_DT='%s',COMPANY_KEY='%s' WHERE USER_ID = '%s'",\
 			strDpt.c_str(),strRn.c_str(),strTel.c_str(),strFax.c_str(),strMobile.c_str(),strEmail.c_str(), strDuty.c_str(),strSt.c_str(),strEt.c_str(),strCorpId.c_str(),strUId.c_str());
 
-		sprintf (sql, "UPDATE t00_user SET PASSWORD='%s' where user_id='%s'",strPwd.c_str(),strUId.c_str());
-		CHECK_MYSQL_STATUS(psql->Execute(sql)>=0, 3);
+	//	sprintf (sql, "UPDATE t00_user SET PASSWORD='%s' where user_id='%s'",strPwd.c_str(),strUId.c_str());
+		//CHECK_MYSQL_STATUS(psql->Execute(sql)>=0, 3);
 	}
-
+ 
+	DEBUG_LOG(sql);
 	CHECK_MYSQL_STATUS(psql->Execute(sql)>=0, 3);
 
 	out<< "{eid:0,"<<"seq:\""<<strSeq.c_str()<<"\"}";
@@ -1251,11 +1252,9 @@ int YTSvc::GetDptUsers(const char* pUid, const char* jsonString, std::stringstre
 					t_depart.BOARD_FLAG,t_user.USER_ID,t_user.NAME,t_user.JOB,t_user.TEL,t_user.MOBILE,t_user.EMAIL,t_user.FAX,UNIX_TIMESTAMP(t_user.START_DT) AS U_START_DT,UNIX_TIMESTAMP(t_user.END_DT) AS U_END_DT,t_user.VALID_FLAG,\
 					t_depart.DEPARTMENT_CODE,t_depart.NAME_CN AS DEPART_NAME\
 					FROM t41_yt_users t_user  \
-					JOIN t41_yt_department_code t_depart ON t_user.DEPARTMENT_CODE=t_depart.DEPARTMENT_CODE \
-					JOIN t41_yt_user_authorities t_auth ON  t_auth.USER_ID=t_user.USER_ID\
+					left JOIN t41_yt_department_code t_depart ON t_user.DEPARTMENT_CODE=t_depart.DEPARTMENT_CODE \
 					WHERE t_user.COMPANY_KEY='%s' AND t_depart.BOARD_FLAG=0 %s",strId.c_str(),appSql);
-
-		DEBUG_LOG(sql);
+ 
 		CHECK_MYSQL_STATUS(psql->Query(sql), 3);
 
 		while(psql->NextRow())
@@ -1304,8 +1303,7 @@ int YTSvc::GetDptUsers(const char* pUid, const char* jsonString, std::stringstre
 					FROM t41_yt_user_role t_role \
 					JOIN t41_yt_user_authorities t_auth ON  t_role.ROLE_ID = t_auth.ROLE_ID\
 					WHERE t_auth.USER_ID='%s' AND t_role.BOARD_FLAG=0;",it->uid.c_str());
-
-		DEBUG_LOG(sql);
+ 
 		CHECK_MYSQL_STATUS(psql->Query(sql), 3);
 
 		if(it!=users.begin())

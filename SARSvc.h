@@ -106,6 +106,12 @@ private:
 	//删除SRU0x66
 	int DeleteSRU(const char* pUid, const char* jsonString, std::stringstream& out);
 
+	//新建修改搜救计划0x82
+	int EditOrAddPlanTable(const char* pUid, const char* jsonString, std::stringstream& out);
+
+	//请求搜救计划0x83
+	int GetRescuePlanTable(const char* pUid, const char* jsonString, std::stringstream& out);
+
 	//搜救船舶列表0x90
 	int GetRescueShipStatistic(const char* pUid, const char* jsonString, std::stringstream& out);
 	
