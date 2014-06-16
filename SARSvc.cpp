@@ -44,8 +44,12 @@ bool SARSvc::Start()
 	SERVICE_MAP(0x0b,SARSvc,getForecastTrack);
 	SERVICE_MAP(0x0c,SARSvc,modifyForecastTrack);
 	SERVICE_MAP(0x0d,SARSvc,customWind);
+	SERVICE_MAP(0x13,SARSvc,GetSRUListInfo);
+	SERVICE_MAP(0x14,SARSvc,GetONSRUInfo);
+	SERVICE_MAP(0x15,SARSvc,AddOrEditSRUInfo);
 	SERVICE_MAP(0x82,SARSvc,EditOrAddPlanTable);
 	SERVICE_MAP(0x83,SARSvc,GetRescuePlanTable);
+	SERVICE_MAP(0x84,SARSvc,DeleteRescuePlan);
 	SERVICE_MAP(0x90,SARSvc,GetRescueShipStatistic);
 	SERVICE_MAP(0x91,SARSvc,GetRescuePlaneStatistic);
 
@@ -1311,6 +1315,27 @@ int SARSvc::GetRescuePlanTable(const char* pUid, const char* jsonString, std::st
 	RELEASE_MYSQL_RETURN(psql, 0);
 }
 
+//2284
+int SARSvc::DeleteRescuePlan(const char* pUid, const char* jsonString, std::stringstream& out)
+{
+	JSON_PARSE_RETURN("[SARSvc::DeleteRescuePlan]bad format:", jsonString, 1);
+
+	string strSeq=root.getv("seq","");
+	string strPlanid=root.getv("planid","");
+
+	MySql* psql = CREATE_MYSQL;
+
+	char sql[1024]="";
+
+	sprintf(sql,"DELETE FROM boloomodb.T41_SAR_PLAN_TABLE \
+				WHERE PLAN_ID='%s'",strPlanid.c_str());
+
+	CHECK_MYSQL_STATUS(psql->Execute(sql)>=0,3);
+
+	out<<"{eid:0,planid:\""<<strPlanid<<"\"}";
+
+	RELEASE_MYSQL_RETURN(psql, 0);
+}
 
 //2290
 int SARSvc::GetRescueShipStatistic(const char* pUid, const char* jsonString, std::stringstream& out)
@@ -1554,4 +1579,396 @@ int SARSvc::GetRescuePlaneStatistic(const char* pUid, const char* jsonString, st
 	RELEASE_MYSQL_RETURN(psql, 0);
 }
 
+//2213
+int SARSvc::GetSRUListInfo(const char* pUid, const char* jsonString, std::stringstream& out)
+{
+	JSON_PARSE_RETURN("[SARSvc::GetSRUListInfo]bad format:", jsonString, 1);
 
+	string strSeq=root.getv("seq","");
+	string strPlanid=root.getv("planid","");
+
+	MySql* psql = CREATE_MYSQL;
+
+	char sql[1024]="";
+
+	sprintf(sql,"SELECT DEPLOY_ID,BEGIN_TIME,REAL_BE_TIME,ETA,ATA,ETD,ATD,PEOPLE_NUM, \
+				STATE FROM boloomodb.T41_SAR_STRENGTH_DEPLOY WHERE \
+				PLAN_ID='%s'",strPlanid.c_str());
+
+	CHECK_MYSQL_STATUS(psql->Query(sql)>=0,3);
+
+	out<<"{seq:\""<<strSeq<<"\",data:[";
+
+	int idx = 0;
+	string deploy_id="";
+	int begin_time=0;
+	int real_be_time=0;
+	int eta=0;
+	int ata=0;
+	int etd=0;
+	int atd=0;
+	int people_num=0;
+	int state=0;
+
+	while(psql->NextRow())
+	{
+		if(idx>0)
+			out<<",";
+		idx++;
+		READMYSQL_STRING(DEPLOY_ID,deploy_id);
+		READMYSQL_INT(BEGIN_TIME,begin_time,0);
+		READMYSQL_INT(REAL_BE_TIME,real_be_time,0);
+		READMYSQL_INT(ETA,eta,0);
+		READMYSQL_INT(ATA,ata,0);
+		READMYSQL_INT(ETD,etd,0);
+		READMYSQL_INT(ATD,atd,0);
+		READMYSQL_INT(PEOPLE_NUM,people_num,0);
+		READMYSQL_INT(STATE,state,0);
+
+		int final_begin_time=0;
+		if(real_be_time)
+			final_begin_time=real_be_time;
+		else
+			final_begin_time=begin_time;
+
+		int final_ata=0;
+		if(ata)
+			final_ata=ata;
+		else
+			final_ata=eta;
+
+		int final_atd=0;
+		if(atd)
+			final_atd=atd;
+		else
+			final_atd=etd;
+
+		sprintf(sql,"SELECT t1.SHIPID,t1.SHIP_NA,t1.TEL,t1.COMPANY \
+					FROM boloomodb.T41_RESCUE_BOAT_STATISTIC t1 \
+					JOIN boloomodb.T41_SAR_STRENGTH_BOAT t2 \
+					ON t1.SHIPID=t2.SHIPID \
+					JOIN boloomodb.T41_SAR_STRENGTH_DEPLOY t3 \
+					ON t3.DEPLOY_ID=t2.DEPLOY_ID \
+					WHERE t3.DEPLOY_ID='%s'",deploy_id.c_str());
+		CHECK_MYSQL_STATUS(psql->Query(sql)>=0,3);
+
+		string shipid="";
+		string ship_na="";
+		string tel="";
+		string company="";
+
+		if(psql->NextRow())
+		{
+			READMYSQL_STRING(SHIPID,shipid);
+			READMYSQL_STRING(SHIP_NA,ship_na);
+			READMYSQL_STRING(TEL,tel);
+			READMYSQL_STRING(COMPANY,company);
+
+			out<<"{deployid:\""<<deploy_id<<"\",sruid:\""<<shipid<<"\",tp:0,na:\""<<ship_na<<"\",tel:\""<<tel<<"\",departm:"<<final_begin_time<<",starttm:"<<final_ata<<",endtm:"<<final_atd<<",num:"<<people_num<<",cmpid:\"\",cmpna:\""<<company<<"\",st:"<<state<<"}";
+		}
+		else
+		{
+			sprintf(sql,"SELECT t1.PLANEID,t1.PLANE_NO,t1.TEL,t1.COMPANY \
+						FROM boloomodb.T41_SAR_STRENGTH_PLANE t2 \
+						LEFT JOIN boloomodb.T41_RESCUE_PLANE_STATISTIC t1 \
+						ON t1.PLANEID=t2.PLANEID \
+						JOIN boloomodb.T41_SAR_STRENGTH_DEPLOY t3 \
+						ON t3.DEPLOY_ID=t2.DEPLOY_ID \
+						WHERE t3.DEPLOY_ID='%s'",deploy_id.c_str());
+			CHECK_MYSQL_STATUS(psql->Query(sql)>=0,3);
+
+			string planeid="";
+			string plane_no="";
+			string tel="";
+			string company="";
+
+			if(psql->NextRow())
+			{	
+				READMYSQL_STRING(PLANEID,planeid);
+				READMYSQL_STRING(PLANE_NO,plane_no);
+				READMYSQL_STRING(TEL,tel);
+				READMYSQL_STRING(COMPANY,company);
+			}
+
+			out<<"{deployid:\""<<deploy_id<<"\",sruid:\""<<planeid<<"\",tp:1,na:\""<<plane_no<<"\",tel:\""<<tel<<"\",departm:"<<final_begin_time<<",starttm:"<<final_ata<<",endtm:"<<final_atd<<",num:"<<people_num<<",cmpid:\"\",cmpna:\""<<company<<"\",st:"<<state<<"}";
+		}
+	}
+
+	out<<"]}";
+
+	RELEASE_MYSQL_RETURN(psql, 0);
+}
+
+//2214
+int SARSvc::GetONSRUInfo(const char* pUid, const char* jsonString, std::stringstream& out)
+{
+	JSON_PARSE_RETURN("[SARSvc::GetONSRUInfo]bad format:", jsonString, 1);
+
+	string strSeq=root.getv("seq","");
+	string strDeployid=root.getv("deployid","");
+
+	MySql* psql = CREATE_MYSQL;
+
+	char sql[1024]="";
+
+	sprintf(sql,"SELECT PLAN_ID,DEPLOY_ID,SEARCH_SPEED,BEGIN_PLACE,BEGIN_TIME,REAL_BE_TIME, \
+				CSP,ETA,ATA,TSP,ETD,ATD,FLY_DISTANCE,PEOPLE_NUM,SEARCH_DISTANCE,SEARCH_AREA \
+			    FROM boloomodb.T41_SAR_STRENGTH_DEPLOY WHERE \
+				DEPLOY_ID='%s'",strDeployid.c_str());
+
+	CHECK_MYSQL_STATUS(psql->Query(sql)>=0,3);
+
+	out<<"{seq:\""<<strSeq<<"\"";
+
+	string deploy_id="";
+	string plan_id="";
+	double search_speed=0.0;
+	string begin_place="";
+	int begin_time=0;
+	int real_be_time=0;
+	string csp="";
+	int eta=0;
+	int ata=0;
+	string tsp="";
+	int etd=0;
+	int atd=0;
+	double fly_distance=0.0;
+	double search_distance=0.0;
+	double search_area=0.0;
+	int people_num=0;
+
+	if(psql->NextRow())
+	{
+		READMYSQL_STRING(PLAN_ID,plan_id);
+		READMYSQL_STRING(DEPLOY_ID,deploy_id);
+		READMYSQL_DOUBLE(SEARCH_SPEED,search_speed,0.0);
+		READMYSQL_STRING(BEGIN_PLACE,begin_place);
+		READMYSQL_INT(BEGIN_TIME,begin_time,0);
+		READMYSQL_INT(REAL_BE_TIME,real_be_time,0);
+		READMYSQL_STRING(CSP,csp);
+		READMYSQL_INT(ETA,eta,0);
+		READMYSQL_INT(ATA,ata,0);
+		READMYSQL_STRING(TSP,tsp);
+		READMYSQL_INT(ETD,etd,0);
+		READMYSQL_INT(ATD,atd,0);
+		READMYSQL_DOUBLE(FLY_DISTANCE,fly_distance,0.0);
+		READMYSQL_DOUBLE(SEARCH_DISTANCE,search_distance,0.0);
+		READMYSQL_DOUBLE(SEARCH_AREA,search_area,0.0);
+		READMYSQL_INT(PEOPLE_NUM,people_num,0);
+
+		sprintf(sql,"SELECT t1.SHIPID,t1.SHIP_NA,t1.TEL,t1.COMPANY,t2.FLAG \
+					FROM boloomodb.T41_SAR_STRENGTH_BOAT t2 \
+					LEFT JOIN boloomodb.T41_RESCUE_BOAT_STATISTIC t1 \
+					ON t1.SHIPID=t2.SHIPID \
+					JOIN boloomodb.T41_SAR_STRENGTH_DEPLOY t3 \
+					ON t3.DEPLOY_ID=t2.DEPLOY_ID \
+					WHERE t3.DEPLOY_ID='%s'",deploy_id.c_str());
+		CHECK_MYSQL_STATUS(psql->Query(sql)>=0,3);
+
+		string shipid="";
+		string ship_na="";
+		string tel="";
+		string company="";
+		int flag=0;
+		int velocity=0;
+
+		if(psql->NextRow())
+		{
+			READMYSQL_STRING(SHIPID,shipid);
+			READMYSQL_STRING(SHIP_NA,ship_na);
+			READMYSQL_STRING(TEL,tel);
+			READMYSQL_STRING(COMPANY,company);
+			READMYSQL_INT(FLAG,flag,0);
+			READMYSQL_INT(VELOCITY,velocity,0);
+
+			out<<",planid:\""<<plan_id<<"\",deployid:\""<<deploy_id<<"\",sruid:\""<<shipid<<"\",sruna:\""<<ship_na<<"\",srusrc:"<<flag<<",spd:"<<velocity<<",sspd:"<<search_speed<<",num:"<<people_num<<",comid:\"\",compna:\""<<company<<"\",tel:\""<<tel<<"\",dsp:\""<<begin_place<<"\",dsp_etd:"<<begin_time<<",dsp_atd:"<<real_be_time<<",csp:\""<<csp<<"\",csp_eta:"<<eta<<",csp_ata::"<<ata<<",tsp:\""<<tsp<<"\",tsp_etd:"<<etd<<",tsp_atd:"<<atd<<",dist:"<<fly_distance<<",sdist:"<<search_distance<<",sarea:"<<search_area;
+		}
+		else
+		{
+			sprintf(sql,"SELECT t1.PLANEID,t1.PLANE_NO,t1.TEL,t1.COMPANY,t1.CRUISE_SPEED \
+						FROM boloomodb.T41_RESCUE_PLANE_STATISTIC t1 \
+						JOIN boloomodb.T41_SAR_STRENGTH_PLANE t2 \
+						ON t1.PLANEID=t2.PLANEID \
+						JOIN boloomodb.T41_SAR_STRENGTH_DEPLOY t3 \
+						ON t3.DEPLOY_ID=t2.DEPLOY_ID \
+						WHERE t3.DEPLOY_ID='%s'",deploy_id.c_str());
+			CHECK_MYSQL_STATUS(psql->Query(sql)>=0,3);
+
+			string planeid="";
+			string plane_no="";
+			string tel="";
+			string company="";
+			int cruise_speed=0;
+
+			if(psql->NextRow())
+			{	
+				READMYSQL_STRING(PLANEID,planeid);
+				READMYSQL_STRING(PLANE_NO,plane_no);
+				READMYSQL_STRING(TEL,tel);
+				READMYSQL_STRING(COMPANY,company);
+				READMYSQL_INT(CRUISE_SPEED,cruise_speed,0);
+			}
+
+			out<<",planid:\""<<plan_id<<"\",deployid:\""<<deploy_id<<"\",sruid:\""<<planeid<<"\",sruna:\""<<plane_no<<"\",srusrc:0,spd:"<<cruise_speed<<",sspd:"<<search_speed<<",num:"<<people_num<<",comid:\"\",compna:\""<<company<<"\",tel:\""<<tel<<"\",dsp:\""<<begin_place<<"\",dsp_etd:"<<begin_time<<",dsp_atd:"<<real_be_time<<",csp:\""<<csp<<"\",csp_eta:"<<eta<<",csp_ata::"<<ata<<",tsp:\""<<tsp<<"\",tsp_etd:"<<etd<<",tsp_atd:"<<atd<<",dist:"<<fly_distance<<",sdist:"<<search_distance<<",sarea:"<<search_area;
+		}
+	}
+
+	out<<"}";
+
+	RELEASE_MYSQL_RETURN(psql, 0);
+}
+
+//2215
+int SARSvc::AddOrEditSRUInfo(const char* pUid, const char* jsonString, std::stringstream& out)
+{
+	JSON_PARSE_RETURN("[SARSvc::AddOrEditSRUInfo]bad format:", jsonString, 1);
+
+	string strSeq=root.getv("seq","");
+	string strPlanid=root.getv("planid","");
+	int strBflag=root.getv("bflag",0);
+	string strDeployid=root.getv("deployid","");
+	string strSruid=root.getv("sruid","");
+	int strSrutp=root.getv("srutp",0);
+	int strSrusrc=root.getv("srusrc",0);
+	double strSpd=root.getv("spd",0.0);
+	double strSspd=root.getv("sspd",0.0);
+	int strNum=root.getv("num",0);
+	string strDsp=root.getv("dsp","");
+	int strDsp_etd=root.getv("dsp_etd",0);
+	int strDsp_atd=root.getv("dsp_atd",0);
+	string strCsp=root.getv("csp","");
+	int strCsp_etd=root.getv("csp_etd",0);
+	int strCsp_atd=root.getv("csp_atd",0);
+	string strTsp=root.getv("tsp","");
+	int strTsp_etd=root.getv("tsp_etd",0);
+	int strTsp_atd=root.getv("tsp_atd",0);
+	double strDist=root.getv("dist",0.0);
+	double strSdist=root.getv("sdist",0.0);
+	double strSarea=root.getv("sarea",0.0);
+
+	MySql* psql = CREATE_MYSQL;
+
+	char sql[1024]="";
+
+	if(strBflag)
+	{
+		sprintf(sql,"UPDATE boloomodb.T41_SAR_STRENGTH_DEPLOY SET \
+					PLAN_ID='%s',SEARCH_SPEED=%f,PEOPLE_NUM=%d, \
+					BEGIN_PLACE='%s',BEGIN_TIME=%d,REAL_BE_TIME=%d, \
+					CSP='%s',ETA=%d,ATA=%d,TSP='%s',ETD=%d,ATD=%d, \
+					FLY_DISTANCE=%f,SEARCH_DISTANCE=%f,SEARCH_AREA=%f \
+					WHERE DEPLOY_ID='%s'",);
+	}
+
+
+
+
+
+
+
+	sprintf(sql,"SELECT PLAN_ID,DEPLOY_ID,SEARCH_SPEED,BEGIN_PLACE,BEGIN_TIME,REAL_BE_TIME, \
+				CSP,ETA,ATA,TSP,ETD,ATD,FLY_DISTANCE,PEOPLE_NUM,SEARCH_DISTANCE,SEARCH_AREA \
+				FROM boloomodb.T41_SAR_STRENGTH_DEPLOY WHERE \
+				DEPLOY_ID='%s'",strDeployid.c_str());
+
+	CHECK_MYSQL_STATUS(psql->Query(sql)>=0,3);
+
+	out<<"{seq:\""<<strSeq<<"\"";
+
+	string deploy_id="";
+	string plan_id="";
+	double search_speed=0.0;
+	string begin_place="";
+	int begin_time=0;
+	int real_be_time=0;
+	string csp="";
+	int eta=0;
+	int ata=0;
+	string tsp="";
+	int etd=0;
+	int atd=0;
+	double fly_distance=0.0;
+	double search_distance=0.0;
+	double search_area=0.0;
+	int people_num=0;
+
+	if(psql->NextRow())
+	{
+		READMYSQL_STRING(PLAN_ID,plan_id);
+		READMYSQL_STRING(DEPLOY_ID,deploy_id);
+		READMYSQL_DOUBLE(SEARCH_SPEED,search_speed,0.0);
+		READMYSQL_STRING(BEGIN_PLACE,begin_place);
+		READMYSQL_INT(BEGIN_TIME,begin_time,0);
+		READMYSQL_INT(REAL_BE_TIME,real_be_time,0);
+		READMYSQL_STRING(CSP,csp);
+		READMYSQL_INT(ETA,eta,0);
+		READMYSQL_INT(ATA,ata,0);
+		READMYSQL_STRING(TSP,tsp);
+		READMYSQL_INT(ETD,etd,0);
+		READMYSQL_INT(ATD,atd,0);
+		READMYSQL_DOUBLE(FLY_DISTANCE,fly_distance,0.0);
+		READMYSQL_DOUBLE(SEARCH_DISTANCE,search_distance,0.0);
+		READMYSQL_DOUBLE(SEARCH_AREA,search_area,0.0);
+		READMYSQL_INT(PEOPLE_NUM,people_num,0);
+
+		sprintf(sql,"SELECT t1.SHIPID,t1.SHIP_NA,t1.TEL,t1.COMPANY,t2.FLAG \
+					FROM boloomodb.T41_SAR_STRENGTH_BOAT t2 \
+					LEFT JOIN boloomodb.T41_RESCUE_BOAT_STATISTIC t1 \
+					ON t1.SHIPID=t2.SHIPID \
+					JOIN boloomodb.T41_SAR_STRENGTH_DEPLOY t3 \
+					ON t3.DEPLOY_ID=t2.DEPLOY_ID \
+					WHERE t3.DEPLOY_ID='%s'",deploy_id.c_str());
+		CHECK_MYSQL_STATUS(psql->Query(sql)>=0,3);
+
+		string shipid="";
+		string ship_na="";
+		string tel="";
+		string company="";
+		int flag=0;
+		int velocity=0;
+
+		if(psql->NextRow())
+		{
+			READMYSQL_STRING(SHIPID,shipid);
+			READMYSQL_STRING(SHIP_NA,ship_na);
+			READMYSQL_STRING(TEL,tel);
+			READMYSQL_STRING(COMPANY,company);
+			READMYSQL_INT(FLAG,flag,0);
+			READMYSQL_INT(VELOCITY,velocity,0);
+
+			out<<",planid:\""<<plan_id<<"\",deployid:\""<<deploy_id<<"\",sruid:\""<<shipid<<"\",sruna:\""<<ship_na<<"\",srusrc:"<<flag<<",spd:"<<velocity<<",sspd:"<<search_speed<<",num:"<<people_num<<",comid:\"\",compna:\""<<company<<"\",tel:\""<<tel<<"\",dsp:\""<<begin_place<<"\",dsp_etd:"<<begin_time<<",dsp_atd:"<<real_be_time<<",csp:\""<<csp<<"\",csp_eta:"<<eta<<",csp_ata::"<<ata<<",tsp:\""<<tsp<<"\",tsp_etd:"<<etd<<",tsp_atd:"<<atd<<",dist:"<<fly_distance<<",sdist:"<<search_distance<<",sarea:"<<search_area;
+		}
+		else
+		{
+			sprintf(sql,"SELECT t1.PLANEID,t1.PLANE_NO,t1.TEL,t1.COMPANY,t1.CRUISE_SPEED \
+						FROM boloomodb.T41_RESCUE_PLANE_STATISTIC t1 \
+						JOIN boloomodb.T41_SAR_STRENGTH_PLANE t2 \
+						ON t1.PLANEID=t2.PLANEID \
+						JOIN boloomodb.T41_SAR_STRENGTH_DEPLOY t3 \
+						ON t3.DEPLOY_ID=t2.DEPLOY_ID \
+						WHERE t3.DEPLOY_ID='%s'",deploy_id.c_str());
+			CHECK_MYSQL_STATUS(psql->Query(sql)>=0,3);
+
+			string planeid="";
+			string plane_no="";
+			string tel="";
+			string company="";
+			int cruise_speed=0;
+
+			if(psql->NextRow())
+			{	
+				READMYSQL_STRING(PLANEID,planeid);
+				READMYSQL_STRING(PLANE_NO,plane_no);
+				READMYSQL_STRING(TEL,tel);
+				READMYSQL_STRING(COMPANY,company);
+				READMYSQL_INT(CRUISE_SPEED,cruise_speed,0);
+			}
+
+			out<<",planid:\""<<plan_id<<"\",deployid:\""<<deploy_id<<"\",sruid:\""<<planeid<<"\",sruna:\""<<plane_no<<"\",srusrc:0,spd:"<<cruise_speed<<",sspd:"<<search_speed<<",num:"<<people_num<<",comid:\"\",compna:\""<<company<<"\",tel:\""<<tel<<"\",dsp:\""<<begin_place<<"\",dsp_etd:"<<begin_time<<",dsp_atd:"<<real_be_time<<",csp:\""<<csp<<"\",csp_eta:"<<eta<<",csp_ata::"<<ata<<",tsp:\""<<tsp<<"\",tsp_etd:"<<etd<<",tsp_atd:"<<atd<<",dist:"<<fly_distance<<",sdist:"<<search_distance<<",sarea:"<<search_area;
+		}
+	}
+
+	out<<"}";
+
+	RELEASE_MYSQL_RETURN(psql, 0);
+}

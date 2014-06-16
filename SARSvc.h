@@ -106,11 +106,23 @@ private:
 	//删除SRU0x66
 	int DeleteSRU(const char* pUid, const char* jsonString, std::stringstream& out);
 
+	//请求搜救力量列表0x13
+	int GetSRUListInfo(const char* pUid, const char* jsonString, std::stringstream& out);
+
+	//请求已部署的SRU详细信息0x14
+	int GetONSRUInfo(const char* pUid, const char* jsonString, std::stringstream& out);
+	
+	//新增或修改0x15
+	int AddOrEditSRUInfo(const char* pUid, const char* jsonString, std::stringstream& out);
+
 	//新建修改搜救计划0x82
 	int EditOrAddPlanTable(const char* pUid, const char* jsonString, std::stringstream& out);
 
 	//请求搜救计划0x83
 	int GetRescuePlanTable(const char* pUid, const char* jsonString, std::stringstream& out);
+
+	//删除搜救计划0x84
+	int DeleteRescuePlan(const char* pUid, const char* jsonString, std::stringstream& out);
 
 	//搜救船舶列表0x90
 	int GetRescueShipStatistic(const char* pUid, const char* jsonString, std::stringstream& out);
