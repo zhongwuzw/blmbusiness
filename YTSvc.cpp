@@ -79,18 +79,23 @@ int YTSvc::getLatestEvents(const char* pUid, const char* jsonString, std::string
 	string seq = root.getv("seq", "");
 	int sdt = root.getv("sdt", 0);
 	int edt = root.getv("edt", 0);
+	string regions = root.getv("regions", "");
 	if(sdt >= edt) return 1;
 
 	int count = 0;
 	out << FormatString("{seq:\"%s\",data:[", seq.c_str());
 
 	char sql[1024];
-	sprintf(sql, "SELECT tid,eventid,mmsi,name,type,time,endlon,endlat,STATUS FROM aisdb.t41_aisevt_yt WHERE TIME BETWEEN %d AND %d order by time desc", sdt, edt);
+	sprintf(sql, "SELECT tid,eventid,mmsi,name,type,time,endlon,endlat,STATUS,region FROM aisdb.t41_aisevt_yt WHERE (TIME BETWEEN %d AND %d)", sdt, edt);
+	if (!regions.empty())
+		strcat(sql, FormatString(" and (region in (%s))", regions.c_str()).c_str());
+	strcat(sql, " order by time desc");
+
 	MySql* psql = CREATE_MYSQL;
 	CHECK_MYSQL_STATUS(psql->Query(sql), 3);
 	while(psql->NextRow()) {
 		if(count != 0) out << ",";
-		out << FormatString("{tid:\"%s\",mm:%s,sname:\"%s\",ei:\"%s\",lat:%s,lon:%s,dt:%s,status:%s}",
+		out << FormatString("{tid:\"%s\",mm:%s,sname:\"%s\",ei:\"%s\",lat:%s,lon:%s,dt:%s,status:%s,region:%s}",
 						psql->GetField("tid"),
 						psql->GetField("mmsi"),
 						NOTNULL(psql->GetField("name")),
@@ -98,7 +103,8 @@ int YTSvc::getLatestEvents(const char* pUid, const char* jsonString, std::string
 						psql->GetField("endlat"),
 						psql->GetField("endlon"),
 						psql->GetField("time"),
-						psql->GetField("status"));
+						psql->GetField("status"),
+						psql->GetField("region"));
 		count++;
 	}
 
@@ -114,6 +120,7 @@ int YTSvc::getHistoryEvents(const char* pUid, const char* jsonString, std::strin
 	int edt = root.getv("edt", 0);
 	string ei = root.getv("eid", "");
 	string status = root.getv("status", "");
+	string regions = root.getv("regions", "");
 	int start = root.getv("start", 0);
 	int end = root.getv("end", 0);
 	if(sdt >= edt || start > end) return 1;
@@ -125,14 +132,20 @@ int YTSvc::getHistoryEvents(const char* pUid, const char* jsonString, std::strin
 
 	char totalSql[1024];
 	sprintf(totalSql, "SELECT count(1) as total FROM aisdb.t41_aisevt_yt WHERE (TIME BETWEEN %d AND %d)", sdt, edt);
+	if (!regions.empty()) {
+		strcat(totalSql, FormatString(" AND (region in (%s))", regions.c_str()).c_str());
+	}
 
 	char sql[1024];
-	sprintf(sql, "SELECT tid,eventid,mmsi,name,type,time,endlon,endlat,STATUS FROM aisdb.t41_aisevt_yt WHERE (TIME BETWEEN %d AND %d)", sdt, edt);
+	sprintf(sql, "SELECT tid,eventid,mmsi,name,type,time,endlon,endlat,STATUS,region FROM aisdb.t41_aisevt_yt WHERE (TIME BETWEEN %d AND %d)", sdt, edt);
 	if(!ei.empty()) {
 		strcat(sql, FormatString(" AND (eventid='%s')", ei.c_str()).c_str());
 	}
 	if(!status.empty()) {
 		strcat(sql, FormatString(" AND (status='%s')", status.c_str()).c_str());
+	}
+	if (!regions.empty()) {
+		strcat(sql, FormatString(" AND (region in (%s))", regions.c_str()).c_str());
 	}
 	strcat(sql, " order by time desc");
 
@@ -151,7 +164,7 @@ int YTSvc::getHistoryEvents(const char* pUid, const char* jsonString, std::strin
 		}
 
 		if(count != 0) out << ",";
-		out << FormatString("{tid:\"%s\",mm:%s,sname:\"%s\",stype:%s,ei:\"%s\",lat:%s,lon:%s,dt:%s,status:%s}",
+		out << FormatString("{tid:\"%s\",mm:%s,sname:\"%s\",stype:%s,ei:\"%s\",lat:%s,lon:%s,dt:%s,status:%s,region:%s}",
 			psql->GetField("tid"),
 			psql->GetField("mmsi"),
 			NOTNULL(psql->GetField("name")),
@@ -160,7 +173,8 @@ int YTSvc::getHistoryEvents(const char* pUid, const char* jsonString, std::strin
 			psql->GetField("endlat"),
 			psql->GetField("endlon"),
 			psql->GetField("time"),
-			psql->GetField("status"));
+			psql->GetField("status"),
+			psql->GetField("region"));
 
 		count++;
 		if(count >= (end-start+1))

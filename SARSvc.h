@@ -115,6 +115,9 @@ private:
 	//新增或修改0x15
 	int AddOrEditSRUInfo(const char* pUid, const char* jsonString, std::stringstream& out);
 
+	//新增或修改0x16
+	int DeleteONSRUInfo(const char* pUid, const char* jsonString, std::stringstream& out);
+
 	//新建修改搜救计划0x82
 	int EditOrAddPlanTable(const char* pUid, const char* jsonString, std::stringstream& out);
 
