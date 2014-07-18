@@ -34,17 +34,7 @@
 #include "AreaSvc.h"
 #include "WebSvc.h"
 #include "OilSpillSvc.h"
-#include "eMOPMaterialsSvc.h"
-#include "eMOPEquipSvc.h"
-#include "eMOPUserMgrSvc.h"
-#include "eMOPMaintenanceSvc.h"
 #include "SequenceManager.h"
-#include "eMopCommDataSvr.h" 
-#include "eMOPRepairSvc.h" 
-#include "eMOPSurveySvc.h" 
-#include "SARSvc.h" 
-#include "BDSvc.h"
-#include "eMOPSMSSvc.h"
 
 CServerMgr::CServerMgr(void)
 {
@@ -273,72 +263,6 @@ bool CServerMgr::Start()
 		DEBUG_LOG("[CServerMgr::Start]g_AreaSvc.Start failed.");
 		return false;
 	}
-	if(g_MainConfig::instance()->GetEmopMaterialsEnable() && !g_eMOPMaterialsSvc::instance()->Start())
-    {
-        DEBUG_LOG("[CServerMgr::Start]g_EmopMaterialsSvr.Start failed.");
-        return false;
-    }
-
-
-	if (!g_Sequence::instance()->Init())
-	{
-		DEBUG_LOG("[CServerMgr::Start]g_Sequence Init failed.");
-		return false;
-	}
-
-	if (!g_SARSvc::instance()->Start())
-	{
-		DEBUG_LOG("[SARSvc::Start]g_SARSvr.Start failed.");
-		return false;
-	}
-
-
-	
-	g_eMOPCommDataSvr::instance()->Init();
-
-
-	if(!g_eMOPEquipSvc::instance()->Start())
-    {
-        DEBUG_LOG("[CServerMgr::Start]g_eMOPEquipSvr.Start failed.");
-        return false;
-    }
-	if(!g_eMOPUserMgrSvc::instance()->Start())
-    {
-        DEBUG_LOG("[CServerMgr::Start]g_eMOPUserMgrSvr.Start failed.");
-        return false;
-    }
-	
-	if (!g_eMOPMaintenanceSvc::instance()->Start())
-	{
-		DEBUG_LOG("[CServerMgr::Start]g_eMOPMaintenanceSvc.Start failed.");
-		return false; 
-	}
-
-	if (!g_eMOPRepairSvc::instance()->Start())
-	{
-		DEBUG_LOG("[CServerMgr::Start]g_eMOPRepairSvc.Start failed.");
-		return false; 
-	}
-
-	if (!g_eMOPSurveySvc::instance()->Start())
-	{
-		DEBUG_LOG("[CServerMgr::Start]g_eMOPSurveySvc.Start failed.");
-		return false; 
-	}
-
-	if(!g_eMOPSMSSvc::instance()->Start())
-	{
-		DEBUG_LOG("[CServerMgr::Start]g_eMOPSMSSvc.Start failed.");
-		return false; 
-	}
-
-	if(!g_BDSvc::instance()->Start())
-	{
-		DEBUG_LOG("[CServerMgr::Start]g_BDSvc.Start failed.");
-		return false; 
-	}
-
- // 
   
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 

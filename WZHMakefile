@@ -24,44 +24,17 @@ LIBS = -L/usr/lib64 -L/usr/local/lib64 -lACE -ldl -lcurl -lGeoIP -ltbbmalloc -lc
 default:all
 
 # 主应用文件列表
-OBJS =  AccountSvc.o \
-	AdSvc.o \
-	AisSvc.o \
-	AreaSvc.o \
+OBJS =  WZHSvc.o \
+	WZHServerMgr.o \
 	ClientSocket.o \
 	ClientSocketMgr.o \
-	CompanySearch.o \
-	CompanySvc.o \
-	DispatchCal.o \
-	DispatchSvc.o \
-	FleetSvc.o \
-	GpsSvc.o \
 	main.o \
 	MainConfig.o \
-	MainSvc.o \
 	Message.o \
-	MessageService.o \
-	MessengerSvc.o \
-	MobileSvc.o \
-	MonitorSvc.o \
-	PhoneSvc.o \
-	PortSvc.o \
-	ShipAis.o \
-	ScheduleSvc.o \
-	ServerMgr.o \
-	SmsMailSvc.o \
-	TraceSvc.o \
-	UserRegSvc.o \
-	VesselSvc.o \
-	VoyageSvc.o \
-	WeatherSvc.o \
-	WebSvc.o \
-	EquipmentSvc.o\
-	BerthSvc.o\
-	OilSpillSvc.o
+	MessageService.o
        	
 # 主应用程序
-APP_NAME = ../bin/blmbusiness
+APP_NAME = ../bin/wzhserver
 
 all:$(APP_NAME) Makefile
 

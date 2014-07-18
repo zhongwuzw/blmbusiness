@@ -71,11 +71,15 @@ bool VesselSvc::Start()
 	SERVICE_MAP(SID_VESSELSEARCH3,VesselSvc,OnVesselDirMsg3);
 	SERVICE_MAP(SID_JUDGE_SHIPID,VesselSvc,judgeShipid);
 	SERVICE_MAP(SID_IMO_MMSI,VesselSvc,imoGetMmsi);
-
 	SERVICE_MAP(SID_VESSELSEARCH4,VesselSvc,OnVesselDirMsg4);
 	SERVICE_MAP(SID_VESSEL_BH,VesselSvc,getVesselVeryDetails);
+	SERVICE_MAP(SID_VESSEL_PSC, VesselSvc, getVesselPSC);
 	
     DEBUG_LOG("[VesselSvc::Start] OK......................................");
+
+	const char* jsonString = "{text:\"anda\",type:\"8\",state:\"\",flag:\"\",built_l:0,built_u:0,spd_l:0,spd_u:0,pn:1,psize:10,timezone:8,lang:1}";
+	std::stringstream out;
+	OnVesselDirMsg3("caiwj", jsonString, out);
 
 	/*const char* jsonString = "{text:\"和顺\",pagecur:1,pagemax:200,details:true,filter:false}";
 	std::stringstream out;
@@ -2019,4 +2023,91 @@ int VesselSvc::getVesselVeryDetails(const char* pUid, const char* jsonString, st
 	}
 
 	RELEASE_MYSQL_RETURN(psql, 0);
+}
+
+// {tmou:[{},{},...,{}],pmou:[{},{},...,{}]}
+int VesselSvc::getVesselPSC(const char* pUid, const char* jsonString, std::stringstream& out)
+{
+	JSON_PARSE_RETURN("[VesselSvc::getVesselPSC]bad format:", jsonString, 1);
+	string shipid = root.getv("shipid", "");
+	if (shipid.empty()) return 1;
+
+	MySql* psql = CREATE_MYSQL;
+
+	int count = 0;
+	char sql[1024];
+	sprintf(sql, "SELECT t1.inspid,t2.next_window,t2.insp_date,t2.shipname,t2.place,t2.call_sign,t2.flag,t2.imo,t2.no_def,t2.detention,t2.keel_laid,t2.gross,t2.deadweight,t2.type,t2.class,t2.company_imo,t2.company,t2.rep_auth,t2.reason \
+		FROM t49_psc_tmou_rel t1 \
+		LEFT JOIN t49_psc_tmou t2 ON t1.INSPID = t2.inspid \
+		WHERE t1.shipid = '%s' LIMIT 50; ", shipid.c_str());
+	CHECK_MYSQL_STATUS(psql->Query(sql), 3);
+	out << "{tmou:[";
+	while (psql->NextRow()) {
+		if (count != 0) out << ",";
+		count++;
+
+		string company = NOTNULL(psql->GetField("company"));
+		StrReplace(company, "\"", "\\\"");
+
+		out << FormatString("{inspid:\"%s\",next_window:\"%s\",insp_date:\"%s\",shipname:\"%s\",place:\"%s\",call_sign:\"%s\",flag:\"%s\",imo:\"%s\",no_def:\"%s\",detention:\"%s\",keel_laid:\"%s\",gross:\"%s\",deadweight:\"%s\",type:\"%s\",class:\"%s\",company_imo:\"%s\",company:\"%s\",rep_auth:\"%s\",reason:\"%s\"}",
+					NOTNULL(psql->GetField("inspid")),
+					NOTNULL(psql->GetField("next_window")),
+					NOTNULL(psql->GetField("insp_date")),
+					NOTNULL(psql->GetField("shipname")),
+					NOTNULL(psql->GetField("place")),
+					NOTNULL(psql->GetField("call_sign")),
+					NOTNULL(psql->GetField("flag")),
+					NOTNULL(psql->GetField("imo")),
+					NOTNULL(psql->GetField("no_def")),
+					NOTNULL(psql->GetField("detention")),
+					NOTNULL(psql->GetField("keel_laid")),
+					NOTNULL(psql->GetField("gross")),
+					NOTNULL(psql->GetField("deadweight")),
+					NOTNULL(psql->GetField("type")),
+					NOTNULL(psql->GetField("class")),
+					NOTNULL(psql->GetField("company_imo")),
+					company.c_str(),
+					NOTNULL(psql->GetField("rep_auth")),
+					NOTNULL(psql->GetField("reason"))
+					);
+	}
+
+	sprintf(sql, "SELECT t1.inspid,t2.insp_date,t2.shipname,t2.call_sign,t2.flag,t2.imo,t2.no_def,t2.detention,t2.keel_laid,t2.gross,t2.deadweight,t2.type,t2.class,t2.company_imo,t2.company,t2.rep_auth,t2.insp_place,t2.reason,t2.insp_type \
+		FROM t49_psc_pmou_rel t1 \
+		LEFT JOIN t49_psc_pmou t2 ON t1.INSPID = t2.inspid \
+		WHERE t1.shipid = '%s' LIMIT 50; ", shipid.c_str());
+	CHECK_MYSQL_STATUS(psql->Query(sql), 3);
+	count = 0;
+	out << "],pmou:[";
+	while (psql->NextRow()) {
+		if (count != 0) out << ",";
+		count++;
+
+		string company = NOTNULL(psql->GetField("company"));
+		StrReplace(company, "\"", "\\\"");
+
+		out << FormatString("{inspid:\"%s\",insp_date:\"%s\",shipname:\"%s\",call_sign:\"%s\",flag:\"%s\",imo:\"%s\",no_def:\"%s\",detention:\"%s\",keel_laid:\"%s\",gross:\"%s\",deadweight:\"%s\",type:\"%s\",class:\"%s\",company_imo:\"%s\",company:\"%s\",rep_auth:\"%s\",insp_place:\"%s\",reason:\"%s\",insp_type:\"%s\"}",
+			NOTNULL(psql->GetField("inspid")),
+			NOTNULL(psql->GetField("insp_date")),
+			NOTNULL(psql->GetField("shipname")),
+			NOTNULL(psql->GetField("call_sign")),
+			NOTNULL(psql->GetField("flag")),
+			NOTNULL(psql->GetField("imo")),
+			NOTNULL(psql->GetField("no_def")),
+			NOTNULL(psql->GetField("detention")),
+			NOTNULL(psql->GetField("keel_laid")),
+			NOTNULL(psql->GetField("gross")),
+			NOTNULL(psql->GetField("deadweight")),
+			NOTNULL(psql->GetField("type")),
+			NOTNULL(psql->GetField("class")),
+			NOTNULL(psql->GetField("company_imo")),
+			company.c_str(),
+			NOTNULL(psql->GetField("rep_auth")),
+			NOTNULL(psql->GetField("insp_place")),
+			NOTNULL(psql->GetField("reason")),
+			NOTNULL(psql->GetField("insp_type"))
+			);
+	}
+	out << "]}";
+	return 0;
 }

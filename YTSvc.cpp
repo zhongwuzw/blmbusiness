@@ -23,14 +23,14 @@ YTSvc::~YTSvc()
 
 bool YTSvc::Start()
 {
-    if(!g_MessageService::instance()->RegisterCmd(MID_YANTAI, this))
-        return false;
+	if(!g_MessageService::instance()->RegisterCmd(MID_YANTAI, this))
+		return false;
 
 	int seconds = 5;
 	g_TimerManager::instance()->schedule(this, (void* )NULL, ACE_OS::gettimeofday() + ACE_Time_Value(seconds), ACE_Time_Value(seconds));
 
-    SERVICE_MAP(MID_YT_LATEST,YTSvc,getLatestEvents);
-    SERVICE_MAP(MID_YT_HISTORY,YTSvc,getHistoryEvents);
+	SERVICE_MAP(MID_YT_LATEST,YTSvc,getLatestEvents);
+	SERVICE_MAP(MID_YT_HISTORY,YTSvc,getHistoryEvents);
 	SERVICE_MAP(MID_YT_UPDATE,YTSvc,updateEvent);
 	SERVICE_MAP(MID_YT_GET_NOTICES,YTSvc,getNotices);
 	SERVICE_MAP(MID_YT_ADD_NOTICE,YTSvc,postNotice);
@@ -53,7 +53,7 @@ bool YTSvc::Start()
 	SERVICE_MAP(0x1d,YTSvc,NewUser);
 	SERVICE_MAP(0x1e,YTSvc,DelUser);
 	//SERVICE_MAP(0x1f,YTSvc,ModifyUserDpt);
-	//SERVICE_MAP(0x20,YTSvc,GetUserInfo);
+	SERVICE_MAP(0x20,YTSvc,GetUserInfo);
 	SERVICE_MAP(0x24,YTSvc,ResetPwd);
 	SERVICE_MAP(0x26,YTSvc,SearchUser);
 	SERVICE_MAP(0x29,YTSvc,GetUserRoles);
@@ -62,10 +62,15 @@ bool YTSvc::Start()
 	SERVICE_MAP(0x32,YTSvc,SearchShipDpt);
 	SERVICE_MAP(0x33,YTSvc,GetDptUsers);
 	SERVICE_MAP(0x34,YTSvc,GetRoleUsers);
-	SERVICE_MAP(0x35,YTSvc,AddOrDelUserRole);
+	SERVICE_MAP(0x35,YTSvc,AddOrDelUserRole); 
+	SERVICE_MAP(0x36,YTSvc,EditUserInfo);
+	SERVICE_MAP(0x37,YTSvc,GetDepartArea);
 
-    DEBUG_LOG("[YTSvc::Start] OK......................................");
-    return true;
+	SERVICE_MAP(0x40,YTSvc,GetRescueShipStatistic);
+	SERVICE_MAP(0x41,YTSvc,GetRescuePlaneStatistic); 
+
+	DEBUG_LOG("[YTSvc::Start] OK......................................");
+	return true;
 }
 
 int YTSvc::handle_timeout(const ACE_Time_Value &tv, const void *arg)
@@ -95,16 +100,17 @@ int YTSvc::getLatestEvents(const char* pUid, const char* jsonString, std::string
 	CHECK_MYSQL_STATUS(psql->Query(sql), 3);
 	while(psql->NextRow()) {
 		if(count != 0) out << ",";
-		out << FormatString("{tid:\"%s\",mm:%s,sname:\"%s\",ei:\"%s\",lat:%s,lon:%s,dt:%s,status:%s,region:%s}",
-						psql->GetField("tid"),
-						psql->GetField("mmsi"),
-						NOTNULL(psql->GetField("name")),
-						psql->GetField("eventid"),
-						psql->GetField("endlat"),
-						psql->GetField("endlon"),
-						psql->GetField("time"),
-						psql->GetField("status"),
-						psql->GetField("region"));
+		out << FormatString("{tid:\"%s\",mm:%s,sname:\"%s\",stype:\"%s\",ei:\"%s\",lat:%s,lon:%s,dt:%s,status:%s,region:%s}",
+			psql->GetField("tid"),
+			psql->GetField("mmsi"),
+			NOTNULL(psql->GetField("name")),
+			NOTNULL(psql->GetField("type")),
+			psql->GetField("eventid"),
+			psql->GetField("endlat"),
+			psql->GetField("endlon"),
+			psql->GetField("time"),
+			psql->GetField("status"),
+			psql->GetField("region"));
 		count++;
 	}
 
@@ -230,12 +236,12 @@ int YTSvc::getNotices(const char* pUid, const char* jsonString, std::stringstrea
 		total++;
 
 		out << FormatString("{id:\"%s\",type:%s,title:\"%s\",ori:\"%s\",time:%s,cont:\"%s\"}",
-						psql->GetField("id"),
-						psql->GetField("type"),
-						psql->GetField("title"),
-						psql->GetField("ori"),
-						psql->GetField("time"),
-						psql->GetField("content"));
+			psql->GetField("id"),
+			psql->GetField("type"),
+			psql->GetField("title"),
+			psql->GetField("ori"),
+			psql->GetField("time"),
+			psql->GetField("content"));
 	}
 	out << "]}";
 
@@ -312,7 +318,7 @@ int YTSvc::getSections(const char* pUid, const char* jsonString, std::stringstre
 	string seq = root.getv("seq", "");
 
 	char sql[1024];
-	strcpy(sql, "select id,startx,starty,endx,endy,time from t41_yt_section");
+	strcpy(sql, "select id,name,startx,starty,endx,endy,time from t41_yt_section ORDER BY TIME DESC");
 
 	int total = 0;
 	out << FormatString("{seq:\"%s\",data:[", seq.c_str());
@@ -322,8 +328,9 @@ int YTSvc::getSections(const char* pUid, const char* jsonString, std::stringstre
 		if(total != 0) out << ",";
 		total++;
 
-		out << FormatString("{id:\"%s\",time:%s,startx:%s,starty:%s,endx:%s,endy:%s}",
+		out << FormatString("{id:\"%s\",name:\"%s\",time:%s,startx:%s,starty:%s,endx:%s,endy:%s}", 
 			psql->GetField("id"),
+			psql->GetField("name"),
 			psql->GetField("time"),
 			psql->GetField("startx"),
 			psql->GetField("starty"),
@@ -346,11 +353,11 @@ int YTSvc::addSection(const char* pUid, const char* jsonString, std::stringstrea
 	double starty = root.getv("starty", 0.0);
 	double endx = root.getv("endx", 0.0);
 	double endy = root.getv("endy", 0.0);
-
+	string name = root.getv("name", "");
 	int sectionID = -1;
 
 	char sql[4*1024];
-	sprintf(sql, "insert into t41_yt_section(startx,starty,endx,endy,time) values ('%f','%f','%f','%f','%d')", startx, starty, endx, endy, time);
+	sprintf(sql, "insert into t41_yt_section(name,startx,starty,endx,endy,time) values ('%s','%f','%f','%f','%f','%d')", name.c_str(),startx, starty, endx, endy, time);
 	MySql* psql = CREATE_MYSQL;
 	if(psql->Execute(sql) > 0)
 		sectionID = psql->GetInsertId();
@@ -781,6 +788,58 @@ int YTSvc::DelDpt(const char* pUid, const char* jsonString, std::stringstream& o
 	RELEASE_MYSQL_RETURN(psql, 0);
 }
 
+
+int YTSvc::GetDepartArea(const char* pUid, const char* jsonString, std::stringstream& out)
+{
+	JSON_PARSE_RETURN("[YTSvc::NewUserRole]bad format:", jsonString, 1);
+	string departId = root.getv("departId", "");//    
+	string strSeq= root.getv("seq", ""); 
+
+	MySql* psql = CREATE_MYSQL;
+	char sql[1024] = "";
+	sprintf (sql, "SELECT AREA_CODE FROM t41_yt_department_area WHERE DEPARTMENT_CODE='%s'",\
+		departId.c_str());
+	CHECK_MYSQL_STATUS(psql->Query(sql)>=0, 3);
+
+	out<< "{seq:\""<<strSeq.c_str()<<"\",area:\"";
+	int idx=0;
+	char code[10]="";
+	while(psql->NextRow()){
+		READMYSQL_STR(AREA_CODE, code);
+		if(idx>0)
+			out<<",";
+		idx++;
+		out<<code;
+	}
+	out<<"\"}";
+	RELEASE_MYSQL_RETURN(psql, 0);
+}
+
+int YTSvc::EditUserInfo(const char* pUid, const char* jsonString, std::stringstream& out)
+{
+	JSON_PARSE_RETURN("[YTSvc::NewUserRole]bad format:", jsonString, 1);
+	string strUId = root.getv("uid", "");// 
+	string strRn = root.getv("rn", ""); 
+	string strTel = root.getv("tel", "");
+	string strFax = root.getv("fax", "");
+	string strMobile = root.getv("mobile", "");
+	string strEmail = root.getv("email", "");  
+	string strSeq= root.getv("seq", ""); 
+
+	MySql* psql = CREATE_MYSQL;
+	char sql[1024] = "";
+	sprintf (sql, "UPDATE t41_yt_users SET NAME='%s',TEL='%s',FAX='%s',MOBILE='%s',EMAIL='%s' WHERE USER_ID = '%s'",\
+		strRn.c_str(),strTel.c_str(),strFax.c_str(),strMobile.c_str(),strEmail.c_str(),strUId.c_str());
+	CHECK_MYSQL_STATUS(psql->Execute(sql)>=0, 3);
+	sprintf (sql, "UPDATE t00_user SET fax='%s',mobile='%s',telno='%s',email='%s' where user_id='%s'",strFax.c_str(),strMobile.c_str(),strTel.c_str(),strEmail.c_str(),strUId.c_str());
+	CHECK_MYSQL_STATUS(psql->Execute(sql)>=0, 3);
+
+
+	out<< "{eid:0,"<<"seq:\""<<strSeq.c_str()<<"\"}";
+	RELEASE_MYSQL_RETURN(psql, 0);
+}
+
+
 int YTSvc::NewUser(const char* pUid, const char* jsonString, std::stringstream& out)
 {
 	JSON_PARSE_RETURN("[YTSvc::NewUserRole]bad format:", jsonString, 1);
@@ -824,27 +883,31 @@ int YTSvc::NewUser(const char* pUid, const char* jsonString, std::stringstream& 
 			strUId.c_str(),strRole.c_str());
 		CHECK_MYSQL_STATUS(psql->Execute(sql)>=0, 3);
 	}
-	
-	if(iOpt==0)
-	{	 
-		sprintf (sql, "INSERT INTO t00_user(user_id,PASSWORD,USERTYPE,SOURCETYPE,is_flag,mainflag,viewsat) VALUES('%s','%s',3,0,1,1,0)",\
-			strUId.c_str(),strPwd.c_str());
-		CHECK_MYSQL_STATUS(psql->Execute(sql)>=0, 3);
 
-		sprintf (sql, "insert into t41_yt_users(USER_ID,PASSWORD,DEPARTMENT_CODE,NAME,TEL,FAX,MOBILE,EMAIL,START_DT,END_DT,COMPANY_KEY,VALID_FLAG,JOB) values ('%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%d','%s')",\
-			strUId.c_str(),strPwd.c_str(), strDpt.c_str(),strRn.c_str(),strTel.c_str(),strFax.c_str(),strMobile.c_str(),strEmail.c_str(), strSt.c_str(),strEt.c_str(),strCorpId.c_str(),iType,strDuty.c_str());
+	if(iOpt==0)
+	{	 string strTel = root.getv("tel", "");
+	string strFax = root.getv("fax", "");
+	string strMobile = root.getv("mobile", "");
+	string strEmail = root.getv("email", "");
+	sprintf (sql, "INSERT INTO t00_user(user_id,PASSWORD,USERTYPE,SOURCETYPE,is_flag,mainflag,viewsat,fax, mobile,telno,email) VALUES('%s','%s',3,0,1,1,0,'%s','%s','%s','%s')",\
+		strUId.c_str(),strPwd.c_str(),strFax.c_str(),strMobile.c_str(),strTel.c_str(),strEmail.c_str());
+	CHECK_MYSQL_STATUS(psql->Execute(sql)>=0, 3);
+
+	sprintf (sql, "insert into t41_yt_users(USER_ID,PASSWORD,DEPARTMENT_CODE,NAME,TEL,FAX,MOBILE,EMAIL,START_DT,END_DT,COMPANY_KEY,VALID_FLAG,JOB) values ('%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%d','%s')",\
+		strUId.c_str(),strPwd.c_str(), strDpt.c_str(),strRn.c_str(),strTel.c_str(),strFax.c_str(),strMobile.c_str(),strEmail.c_str(), strSt.c_str(),strEt.c_str(),strCorpId.c_str(),iType,strDuty.c_str());
+
+	CHECK_MYSQL_STATUS(psql->Execute(sql)>=0, 3);
 	}
 	else
 	{
 		sprintf (sql, "UPDATE t41_yt_users SET DEPARTMENT_CODE='%s',NAME='%s',TEL='%s',FAX='%s',MOBILE='%s',EMAIL='%s',JOB='%s',START_DT='%s',END_DT='%s',COMPANY_KEY='%s' WHERE USER_ID = '%s'",\
 			strDpt.c_str(),strRn.c_str(),strTel.c_str(),strFax.c_str(),strMobile.c_str(),strEmail.c_str(), strDuty.c_str(),strSt.c_str(),strEt.c_str(),strCorpId.c_str(),strUId.c_str());
-
-	//	sprintf (sql, "UPDATE t00_user SET PASSWORD='%s' where user_id='%s'",strPwd.c_str(),strUId.c_str());
-		//CHECK_MYSQL_STATUS(psql->Execute(sql)>=0, 3);
+		CHECK_MYSQL_STATUS(psql->Execute(sql)>=0, 3);
+		sprintf (sql, "UPDATE t00_user SET fax='%s',mobile='%s',telno='%s',email='%s' where user_id='%s'",strFax.c_str(),strMobile.c_str(),strTel.c_str(),strEmail.c_str(),strUId.c_str());
+		CHECK_MYSQL_STATUS(psql->Execute(sql)>=0, 3);
 	}
- 
+
 	DEBUG_LOG(sql);
-	CHECK_MYSQL_STATUS(psql->Execute(sql)>=0, 3);
 
 	out<< "{eid:0,"<<"seq:\""<<strSeq.c_str()<<"\"}";
 	RELEASE_MYSQL_RETURN(psql, 0);
@@ -895,7 +958,8 @@ int YTSvc::GetUserInfo(const char* pUid, const char* jsonString, std::stringstre
 	MySql* psql = CREATE_MYSQL;
 	char sql[1024] = "";
 	sprintf(sql,\
-		"select PASSWORD,DEPARTMENT_CODE,COMPANY_KEY,NAME,TEL,FAX,MOBILE,EMAIL,VALID_FLAG,UNIX_TIMESTAMP(START_DT) as startdt,UNIX_TIMESTAMP(END_DT)as enddt from t41_yt_users where USER_ID='%s'",strUId.c_str());
+		"SELECT t1.PASSWORD,t1.DEPARTMENT_CODE,t1.COMPANY_KEY,t1.NAME,t1.TEL,t1.FAX,t1.MOBILE,t1.EMAIL,t1.VALID_FLAG,UNIX_TIMESTAMP(START_DT) AS startdt,UNIX_TIMESTAMP(END_DT)AS enddt,t1.job,t2.NAME_CN FROM t41_yt_users t1 \
+		LEFT JOIN t41_yt_department_code t2 ON t1.DEPARTMENT_CODE=t2.DEPARTMENT_CODE where t1.USER_ID='%s'",strUId.c_str());
 
 	CHECK_MYSQL_STATUS(psql->Query(sql), 101);
 	char na[128]="";
@@ -909,7 +973,8 @@ int YTSvc::GetUserInfo(const char* pUid, const char* jsonString, std::stringstre
 	int iSt=0;
 	int iEt=0;
 	char corpkey[100]="";
-
+	char strjob[100]="";
+	char strDepartName[100]="";
 	if(psql->NextRow())
 	{		
 		READMYSQL_STR(PASSWORD, pwd);
@@ -922,10 +987,12 @@ int YTSvc::GetUserInfo(const char* pUid, const char* jsonString, std::stringstre
 		READMYSQL_STR(EMAIL, email);
 		READMYSQL_INT(VALID_FLAG,iFlag, -1);
 		READMYSQL_INT(startdt, iSt,-1);
-		READMYSQL_INT(enddt, iEt,-1);
+		READMYSQL_INT(enddt, iEt,-1); 
+		READMYSQL_STR(job, strjob);
+		READMYSQL_STR(NAME_CN, strDepartName);
 		out << "{seq:\"" << strSeq.c_str() << "\",uid:\"" << strUId.c_str()<<\
 			"\",rn:\"" << na<<"\",pwd:\"" << pwd<<"\",tel:\"" << tel<<"\",fax:\"" << fax<<"\",mobile:\"" << mobile<<"\",email:\"" << \
-			email<<"\",st:" << iSt<<",et:" << iEt<<",compkey:\"" << corpkey<<"\",dept:\"" << dept<<"\",type:" << iFlag<<",";//compkey:”C001” 
+			email<<"\",st:" << iSt<<",et:" << iEt<<",compkey:\"" << corpkey<<"\",duty:\""<<strjob<<"\",dept:\"" << dept<<"\",deptName:\""<<strDepartName<<"\",type:" << iFlag<<",";//compkey:”C001” 
 	}
 	sprintf(sql,\
 		"select t1.ROLE_ID,t2.Name_CN from t41_yt_USER_AUTHORITIES t1 left join t41_yt_USER_ROLE t2 on t1.ROLE_ID=t2.Role_ID where t1.USER_ID='%s'",strUId.c_str());
@@ -939,7 +1006,7 @@ int YTSvc::GetUserInfo(const char* pUid, const char* jsonString, std::stringstre
 		READMYSQL_STR(Name_CN, email);
 		if (cnt++)
 			out<<",";
-		out<<"{id:\""<<dept<<"\",na:\""<<email<<"\"}";
+		out<<"{rid:\""<<dept<<"\",rna:\""<<email<<"\"}";
 	}
 	out <<"],ships:[]}";
 	RELEASE_MYSQL_RETURN(psql, 0);
@@ -988,7 +1055,21 @@ int YTSvc::GetUserRoles(const char* pUid, const char* jsonString, std::stringstr
 			out<<","; 
 		out << "{id:\"" << id<< "\",na:\"" <<na<<"\"}";
 	}
-	out<<"]}";
+	out<<"]";
+	sprintf(sql,\
+		"select t1.DEPARTMENT_CODE,t2.NAME_CN from t41_yt_users t1 left join t41_yt_department_code t2 on t1.DEPARTMENT_CODE=t2.DEPARTMENT_CODE where t1.USER_ID='%s'",strUId.c_str());
+	CHECK_MYSQL_STATUS(psql->Query(sql), 3);
+	char departid[128]="";
+	char departna[100] = ""; 
+	if(psql->NextRow())
+	{		
+		READMYSQL_STR(DEPARTMENT_CODE, departid);
+		READMYSQL_STR(NAME_CN, departna); 
+		out << ",id:\"" << departid<< "\",na:\"" <<departna<<"\"";
+	}else{
+		out << ",id:\"\",na:\"\"";
+	}
+	out<<"}";
 
 	RELEASE_MYSQL_RETURN(psql, 0);
 }
@@ -1049,14 +1130,14 @@ int YTSvc::ResetPwd(const char* pUid, const char* jsonString, std::stringstream&
 				sprintf (sql, "UPDATE t41_yt_users SET PASSWORD='%s' WHERE USER_ID = '%s'",\
 					strNewPwd.c_str(), strUId.c_str());
 				CHECK_MYSQL_STATUS(psql->Execute(sql)>=0, 3);
-				out<< "{eid:0,"<<"seq:\""<<strSeq.c_str()<<"code:0"<<"}";
+				out<< "{eid:0,"<<"seq:\""<<strSeq.c_str()<<"\",code:0"<<"}";
 			}
 			else
-				out<< "{eid:0,"<<"seq:\""<<strSeq.c_str()<<"code:-1"<<"}";
+				out<< "{eid:0,"<<"seq:\""<<strSeq.c_str()<<"\",code:-1"<<"}";
 		}
 		else
 		{			
-			out<< "{eid:0,"<<"seq:\""<<strSeq.c_str()<<"code:0"<<"}";
+			out<< "{eid:0,"<<"seq:\""<<strSeq.c_str()<<"\",code:0"<<"}";
 		}
 	}
 	else
@@ -1102,7 +1183,7 @@ int YTSvc::AddOrDelUserRole(const char* pUid, const char* jsonString, std::strin
 
 	RELEASE_MYSQL_RETURN(psql, 0);
 }
- 
+
 // 获取用户所在公司，公司部门
 int YTSvc::GetCompanyDpt(const char* pUid, const char* jsonString, std::stringstream& out)
 {
@@ -1254,57 +1335,57 @@ int YTSvc::GetDptUsers(const char* pUid, const char* jsonString, std::stringstre
 
 	char roleId[200]="";
 	char roleName[200]=""; 
-  
+
 
 	list<User> users;
- 
-		//用户信息
-		if(!strDid.empty())
-			sprintf(appSql," AND t_user.DEPARTMENT_CODE='%s'",strDid.c_str());
 
-		sprintf(sql,"SELECT\
-					t_depart.BOARD_FLAG,t_user.USER_ID,t_user.NAME,t_user.JOB,t_user.TEL,t_user.MOBILE,t_user.EMAIL,t_user.FAX,UNIX_TIMESTAMP(t_user.START_DT) AS U_START_DT,UNIX_TIMESTAMP(t_user.END_DT) AS U_END_DT,t_user.VALID_FLAG,\
-					t_depart.DEPARTMENT_CODE,t_depart.NAME_CN AS DEPART_NAME\
-					FROM t41_yt_users t_user  \
-					left JOIN t41_yt_department_code t_depart ON t_user.DEPARTMENT_CODE=t_depart.DEPARTMENT_CODE \
-					WHERE t_user.COMPANY_KEY='%s' AND t_depart.BOARD_FLAG=0 %s",strId.c_str(),appSql);
- 
-		CHECK_MYSQL_STATUS(psql->Query(sql), 3);
+	//用户信息
+	if(!strDid.empty())
+		sprintf(appSql," AND t_user.DEPARTMENT_CODE='%s'",strDid.c_str());
 
-		while(psql->NextRow())
-		{  
-			READMYSQL_STR(USER_ID, uid);
-			READMYSQL_STR(NAME, name);
-			READMYSQL_STR(JOB, job);
-			READMYSQL_STR(TEL, tel);
-			READMYSQL_STR(FAX, fax);
-			READMYSQL_STR(USER_ID, mobile);
-			READMYSQL_STR(NAME, email);
-			READMYSQL_INT(U_START_DT, stime,0);
-			READMYSQL_INT(U_END_DT, etime,0);
-			READMYSQL_INT(VALID_FLAG, state,0); 
-			READMYSQL_STR(DEPARTMENT_CODE, departId);
-			READMYSQL_STR(DEPART_NAME, departName); 
-			cstype=0; // 0:岸端、1:船端
+	sprintf(sql,"SELECT\
+				t_depart.BOARD_FLAG,t_user.USER_ID,t_user.NAME,t_user.JOB,t_user.TEL,t_user.MOBILE,t_user.EMAIL,t_user.FAX,UNIX_TIMESTAMP(t_user.START_DT) AS U_START_DT,UNIX_TIMESTAMP(t_user.END_DT) AS U_END_DT,t_user.VALID_FLAG,\
+				t_depart.DEPARTMENT_CODE,t_depart.NAME_CN AS DEPART_NAME\
+				FROM t41_yt_users t_user  \
+				left JOIN t41_yt_department_code t_depart ON t_user.DEPARTMENT_CODE=t_depart.DEPARTMENT_CODE \
+				WHERE t_user.COMPANY_KEY='%s' AND t_depart.BOARD_FLAG=0 %s",strId.c_str(),appSql);
 
-			User user;
-			user.uid = uid;
-			user.name = name;
-			user.job = job;
-			user.tel = tel;
-			user.fax = fax;
-			user.mobile = mobile;
-			user.email = email;
-			user.stime = stime;
-			user.etime = etime;
-			user.state = state;
-			user.cstype = cstype;
-			user.depart.departId = departId;
-			user.depart.departName = departName;  
+	CHECK_MYSQL_STATUS(psql->Query(sql), 3);
 
-			users.push_back(user);
-		} 
-	 
+	while(psql->NextRow())
+	{  
+		READMYSQL_STR(USER_ID, uid);
+		READMYSQL_STR(NAME, name);
+		READMYSQL_STR(JOB, job);
+		READMYSQL_STR(TEL, tel);
+		READMYSQL_STR(FAX, fax);
+		READMYSQL_STR(MOBILE, mobile);
+		READMYSQL_STR(EMAIL, email);
+		READMYSQL_INT(U_START_DT, stime,0);
+		READMYSQL_INT(U_END_DT, etime,0);
+		READMYSQL_INT(VALID_FLAG, state,0); 
+		READMYSQL_STR(DEPARTMENT_CODE, departId);
+		READMYSQL_STR(DEPART_NAME, departName); 
+		cstype=0; // 0:岸端、1:船端
+
+		User user;
+		user.uid = uid;
+		user.name = name;
+		user.job = job;
+		user.tel = tel;
+		user.fax = fax;
+		user.mobile = mobile;
+		user.email = email;
+		user.stime = stime;
+		user.etime = etime;
+		user.state = state;
+		user.cstype = cstype;
+		user.depart.departId = departId;
+		user.depart.departName = departName;  
+
+		users.push_back(user);
+	} 
+
 	if(users.size()<=0){  
 		out<<"{seq:\""<<strSeq<<"\", users:[]}";
 		return 0;
@@ -1317,7 +1398,7 @@ int YTSvc::GetDptUsers(const char* pUid, const char* jsonString, std::stringstre
 					FROM t41_yt_user_role t_role \
 					JOIN t41_yt_user_authorities t_auth ON  t_role.ROLE_ID = t_auth.ROLE_ID\
 					WHERE t_auth.USER_ID='%s' AND t_role.BOARD_FLAG=0;",it->uid.c_str());
- 
+
 		CHECK_MYSQL_STATUS(psql->Query(sql), 3);
 
 		if(it!=users.begin())
@@ -1380,3 +1461,139 @@ int  YTSvc::GetRoleUsers(const char* pUid, const char* jsonString, std::stringst
 	RELEASE_MYSQL_RETURN(psql, 0);
 	return 0;
 } 
+
+
+int YTSvc::GetRescueShipStatistic(const char* pUid, const char* jsonString, std::stringstream& out)
+{
+	JSON_PARSE_RETURN("[SARSvc::GetRescueShipStatistic]bad format:", jsonString, 1);
+
+	string strSeq=root.getv("seq",""); 
+	string strVid=root.getv("vid","");
+
+
+	MySql* psql = CREATE_MYSQL;
+
+	char sql[1024]=""; 
+
+
+	sprintf(sql,"SELECT PLACE,COMPANY,SHIP_NA,SHIP_AREA,SHIP_KIND,SHIP_LENGTH, \
+				TOTAL_WEIGH,SHIP_POWER,VELOCITY,RESISTANCE,WIND_RATE, \
+				FIRE_EQUIP,COMMUNICATE_EQUIP,LOCATION,REMARK \
+				FROM T41_YT_RESCUE_BOAT_STATISTIC  where VERSION_ID='%s'",strVid.c_str());
+
+	CHECK_MYSQL_STATUS(psql->Query(sql)>=0,3);
+
+	DEBUG_LOG(sql);
+
+	string place="";
+	string company="";
+	string ship_na="";
+	string ship_area="";
+	string ship_kind="";
+	double ship_length=0;
+	double total_weigh=0;
+	double ship_power=0;
+	double velocity=0.0;
+	int resistance=0;
+	string wind_rate="";
+	string fire_equip="";
+	string communicate_equip="";
+	string location="";
+	string remark="";
+	string tel="";
+
+	out<<"{seq:\""<<strSeq<<"\",info:[";
+	int idx=0;
+
+	while(psql->NextRow())
+	{
+		DEBUG_LOG("sa");
+		if(idx>0)
+			out<<",";
+		idx++;
+		READMYSQL_STRING(PLACE,place);
+		READMYSQL_STRING(COMPANY,company);
+		READMYSQL_STRING(SHIP_NA,ship_na);
+		READMYSQL_STRING(SHIP_AREA,ship_area);
+		READMYSQL_STRING(SHIP_KIND,ship_kind);
+		READMYSQL_DOUBLE(SHIP_LENGTH,ship_length,0.0);
+		READMYSQL_DOUBLE(TOTAL_WEIGH,total_weigh,0.0);
+		READMYSQL_DOUBLE(SHIP_POWER,ship_power,0.0);
+		READMYSQL_DOUBLE(VELOCITY,velocity,0.0);
+		READMYSQL_INT(RESISTANCE,resistance,0);
+		READMYSQL_STRING(WIND_RATE,wind_rate);
+		READMYSQL_STRING(FIRE_EQUIP,fire_equip);
+		READMYSQL_STRING(COMMUNICATE_EQUIP,communicate_equip);
+		READMYSQL_STRING(LOCATION,location);
+		READMYSQL_STRING(REMARK,remark);
+		READMYSQL_STRING(TEL,tel);
+
+		out<<"{place:\""<<place<<"\",comp:\""<<company<<"\",na:\""<<ship_na<<"\",area:\""<<ship_area<<"\",kind:\""<<ship_kind<<"\",ship_length:"<<ship_length<<",total_weigh:"<<total_weigh<<",ship_power:"<<ship_power<<",velocity:"<<velocity<<",resistance:"<<resistance<<",wind_rate:\""<<wind_rate<<"\",fire_equip:\""<<fire_equip<<"\",communicate_equip:\""<<communicate_equip<<"\",location:\""<<location<<"\",remark:\""<<remark<<"\",tel:\""<<tel<<"\"}";
+
+	}
+
+	out<<"]}";
+	RELEASE_MYSQL_RETURN(psql, 0);
+}
+
+int YTSvc::GetRescuePlaneStatistic(const char* pUid, const char* jsonString, std::stringstream& out)
+{
+	JSON_PARSE_RETURN("[SARSvc::GetRescuePlaneStatistic]bad format:", jsonString, 1);
+
+	string strSeq=root.getv("seq",""); 
+	string strVid=root.getv("vid","");
+
+
+	MySql* psql = CREATE_MYSQL;
+
+	char sql[1024]="";
+
+	sprintf(sql,"SELECT PLACE,COMPANY,PLANE_NO,PLANE_MODEL,MAX_RANGE,CREW, \
+				MAX_SPEED,CRUISE_SPEED,COMMUNICATION_EQUIP,LOCATION,RESCUE_EQUIP, \
+				REMARK \
+				FROM boloomodb.T41_YT_RESCUE_PLANE_STATISTIC where  VERSION_ID='%s'",strVid.c_str());
+	CHECK_MYSQL_STATUS(psql->Query(sql)>=0,3);
+
+	string place="";
+	string company="";
+	string plane_no="";
+	string plane_model="";
+	int max_range=0;
+	string crew="";
+	int max_speed=0;
+	double cruise_speed=0.0;
+	string communication_equip="";
+	string location="";
+	string rescue_equip="";
+	string remark="";
+	string tel="";
+
+	out<<"{seq:\""<<strSeq<<"\",info:[";
+	int idx=0;
+
+	while(psql->NextRow())
+	{
+		if(idx>0)
+			out<<",";
+		idx++;
+		READMYSQL_STRING(PLACE,place);
+		READMYSQL_STRING(COMPANY,company);
+		READMYSQL_STRING(PLANE_NO,plane_no);
+		READMYSQL_STRING(PLANE_MODEL,plane_model);
+		READMYSQL_INT(MAX_RANGE,max_range,0);
+		READMYSQL_STRING(CREW,crew);
+		READMYSQL_INT(MAX_SPEED,max_speed,0);
+		READMYSQL_DOUBLE(CRUISE_SPEED,cruise_speed,0.0);
+		READMYSQL_STRING(COMMUNICATION_EQUIP,communication_equip);
+		READMYSQL_STRING(LOCATION,location);
+		READMYSQL_STRING(RESCUE_EQUIP,rescue_equip);
+		READMYSQL_STRING(REMARK,remark);
+		READMYSQL_STRING(TEL,tel);
+
+		out<<"{place:\""<<place<<"\",comp:\""<<company<<"\",plane_no:\""<<plane_no<<"\",plane_model:\""<<plane_model<<"\",max_range:"<<max_range<<",crew:\""<<crew<<"\",max_speed:"<<max_speed<<",cruise_speed:"<<cruise_speed<<",communication_equip:\""<<communication_equip<<"\",location:\""<<location<<"\",rescue_equip:\""<<rescue_equip<<"\",remark:\""<<remark<<"\",tel:\""<<tel<<"\"}";
+
+	}
+
+	out<<"]}";
+	RELEASE_MYSQL_RETURN(psql, 0);
+}

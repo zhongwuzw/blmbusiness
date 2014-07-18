@@ -243,8 +243,6 @@ bool CAisShip::refreshAis()
     sprintf(sql, "select t1.mmsi,t1.name, t1.callsign, t1.srcid,t1.longitude,t1.latitude,t1.nav_status,t1.sog,t1.true_head,t1.cog,t1.dest,t1.draught,t1.width,t1.length,t2.to_portid,t1.eta,t1.ship_type,t1.imo,t1.avgspeed,t1.time from aisdb.t41_ais_ship_realtime t1 left join aisdb.t41_ais_dest_map t2 on t1.dest_id = t2.dest_id where UNIX_TIMESTAMP(t1.last_upd_dt)>=%ld and t1.time >=1356969600 and t1.mmsi >= 100000000", m_LastAisTime);
 	psql->Query(sql);
 
-	
-
 	ACE_Write_Guard<ACE_RW_Thread_Mutex> lock(m_aisLock);
 
 	while(psql->NextRow())
@@ -279,12 +277,6 @@ bool CAisShip::refreshAis()
         ar.clean();
 
         m_AisMap[ar.mmsi]=ar;
-
-		/*AISMAP::iterator iter = m_AisMap.find(ar.mmsi);
-		if(iter == m_AisMap.end())
-			m_AisMap.insert(AISMAP::value_type(ar.mmsi, ar));
-		else
-			iter->second = ar;*/
 	}
 
 	m_LastAisTime = time(NULL)-8*3600;

@@ -101,6 +101,7 @@ private:
 	int judgeShipid(const char* pUid, const char* jsonString, std::stringstream& out);
 	int imoGetMmsi(const char* pUid, const char* jsonString, std::stringstream& out);
 	int getVesselVeryDetails(const char* pUid, const char* jsonString, std::stringstream& out);
+	int getVesselPSC(const char* pUid, const char* jsonString, std::stringstream& out);
 	
 	CAisShip &GetAisShip(){return aisShip;}
 

@@ -91,12 +91,21 @@ private:
 	int GetUserDpt(const char* pUid, const char* jsonString, std::stringstream& out);
 	int ResetPwd(const char* pUid, const char* jsonString, std::stringstream& out);
 	int AddOrDelUserRole(const char* pUid, const char* jsonString, std::stringstream& out); 
+	int EditUserInfo(const char* pUid, const char* jsonString, std::stringstream& out);
+	int GetDepartArea(const char* pUid, const char* jsonString, std::stringstream& out);
 
 	// 获取用户所在公司，公司部门
 	int GetCompanyDpt(const char* pUid, const char* jsonString, std::stringstream& out);
 	int SearchShipDpt(const char* pUid, const char* jsonString, std::stringstream& out);
 	int GetDptUsers(const char* pUid, const char* jsonString, std::stringstream& out);
 	int GetRoleUsers(const char* pUid, const char* jsonString, std::stringstream& out);
+
+		//搜救船舶列表 
+	int GetRescueShipStatistic(const char* pUid, const char* jsonString, std::stringstream& out);
+	
+	//搜救船舶列表 
+	int GetRescuePlaneStatistic(const char* pUid, const char* jsonString, std::stringstream& out);
+
 };
 
 typedef ACE_Singleton<YTSvc, ACE_Null_Mutex> g_YTSvc;

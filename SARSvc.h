@@ -23,6 +23,7 @@ private:
 	int modifyAccident(const char* pUid, const char* jsonString, std::stringstream& out);
 	int getAccident(const char* pUid, const char* jsonString, std::stringstream& out);
 	int deleteAccident(const char* pUid, const char* jsonString, std::stringstream& out);
+	int termainalAccident(const char* pUid, const char* jsonString, std::stringstream& out);
 	int getLKP(const char* pUid, const char* jsonString, std::stringstream& out);
 	int modifyLKP(const char* pUid, const char* jsonString, std::stringstream& out);
 	int deleteLKP(const char* pUid, const char* jsonString, std::stringstream& out);
@@ -109,6 +110,9 @@ private:
 	//请求搜救力量列表0x13
 	int GetSRUListInfo(const char* pUid, const char* jsonString, std::stringstream& out);
 
+	//请求搜救力量列表0x13
+	int GetAllocSRUInfo(const char* pUid, const char* jsonString, std::stringstream& out);
+
 	//请求已部署的SRU详细信息0x14
 	int GetONSRUInfo(const char* pUid, const char* jsonString, std::stringstream& out);
 	
@@ -118,6 +122,26 @@ private:
 	//新增或修改0x16
 	int DeleteONSRUInfo(const char* pUid, const char* jsonString, std::stringstream& out);
 
+	//新增或修改0x17
+	int StopONSRUInfo(const char* pUid, const char* jsonString, std::stringstream& out);
+
+	//新增或修改0x18
+	int GetOffSRUInfo(const char* pUid, const char* jsonString, std::stringstream& out);
+
+	//请求搜寻计划书0x86
+	int getSRUBook(const char* pUid, const char* jsonString, std::stringstream& out);
+
+	int getSRUhaha(std::string &deploy_id,std::string &boatorplane);
+
+	int GetSRUPlanList(std::string &strVid,std::string &strPlanid,std::string &rescuePlan);
+
+	int GetSRUBookTemp(std::string &strDeployid,std::string &bookPlan);
+
+	int GetSRURescueStuff(int obj_num,std::string &fall_id,std::string &strPlanid,std::string &rescueStuff);
+
+	//新增或修改0x19
+	int GetSRUStateInfo(const char* pUid, const char* jsonString, std::stringstream& out);
+
 	//新建修改搜救计划0x82
 	int EditOrAddPlanTable(const char* pUid, const char* jsonString, std::stringstream& out);
 
@@ -126,6 +150,9 @@ private:
 
 	//删除搜救计划0x84
 	int DeleteRescuePlan(const char* pUid, const char* jsonString, std::stringstream& out);
+
+	//请求搜救计划0x85
+	int getSRUAccList(const char* pUid, const char* jsonString, std::stringstream& out);
 
 	//搜救船舶列表0x90
 	int GetRescueShipStatistic(const char* pUid, const char* jsonString, std::stringstream& out);
